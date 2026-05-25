@@ -1,0 +1,105 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------
+// Citizen — no account, identified only by national ID (DNI)
+// ------------------------------------------------------------
+model Citizen {
+  id        String   @id @default(uuid())
+  dni       String   @unique
+  fullName  String   @map("full_name")
+  phone     String?
+  email     String?  @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  requests Request[]
+
+  @@map("citizens")
+}
+
+// ------------------------------------------------------------
+// Department — fixed, populated via seed
+// Examples: Works, Licenses, Civil Registry, Taxation
+// ------------------------------------------------------------
+model Department {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  active      Boolean @default(true)
+
+  requests        Request[]
+  classifications Classification[]
+
+  @@map("departments")
+}
+
+// ------------------------------------------------------------
+// Request — core entity of the system
+// ------------------------------------------------------------
+model Request {
+  id           String @id @default(uuid())
+  trackingCode String @unique @map("tracking_code")
+
+  citizenId String  @map("citizen_id")
+  citizen   Citizen @relation(fields: [citizenId], references: [id])
+
+  // Null until the AI (or staff) assigns a department
+  departmentId String?     @map("department_id")
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  subject     String
+  description String        @db.Text
+  status      RequestStatus @default(PENDING)
+  priority    Int           @default(3) // 1 = urgent, 5 = routine
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  classifications Classification[]
+
+  @@map("requests")
+}
+
+enum RequestStatus {
+  PENDING // Just submitted, not yet classified
+  CLASSIFIED // AI assigned a department
+  IN_REVIEW // Staff is reviewing
+  RESOLVED
+  REJECTED
+
+  @@map("request_status")
+}
+
+// ------------------------------------------------------------
+// Classification — log of every AI decision
+// Enables audit trail and feedback loop
+// ------------------------------------------------------------
+model Classification {
+  id String @id @default(uuid())
+
+  requestId String  @map("request_id")
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  suggestedDepartmentId String     @map("suggested_department_id")
+  suggestedDepartment   Department @relation(fields: [suggestedDepartmentId], references: [id])
+
+  confidence Float // 0.0 – 1.0
+  modelUsed  String  @map("model_used") // e.g. "gemini-1.5-flash"
+  reasoning  String  @db.Text // AI explanation
+  accepted   Boolean @default(true) // false if staff overrode the decision
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("classifications")
+}
