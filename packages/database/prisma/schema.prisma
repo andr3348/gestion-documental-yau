@@ -13,94 +13,196 @@ datasource db {
   provider = "postgresql"
 }
 
-// ------------------------------------------------------------
-// Citizen — no account, identified only by national ID (DNI)
-// ------------------------------------------------------------
-model Citizen {
-  id        String   @id @default(uuid())
-  dni       String   @unique
-  fullName  String   @map("full_name")
-  phone     String?
-  email     String?  @unique
-  createdAt DateTime @default(now()) @map("created_at")
+// -------------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------------
 
-  requests Request[]
-
-  @@map("citizens")
+enum Role {
+  CITIZEN // Ciudadano que presenta trámites
+  SECRETARY // Funcionario de un área municipal
+  ADMIN // Administrador del sistema
 }
 
-// ------------------------------------------------------------
-// Department — fixed, populated via seed
-// Examples: Works, Licenses, Civil Registry, Taxation
-// ------------------------------------------------------------
+enum TramiteStatus {
+  PENDING // Recibido, esperando clasificación del LLM
+  CLASSIFIED // LLM lo clasificó, asignado a un área
+  IN_REVIEW // El funcionario lo tomó
+  RESOLVED // Trámite atendido y cerrado
+  REJECTED // Rechazado con motivo
+}
+
+enum NotificationChannel {
+  EMAIL
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+// -------------------------------------------------------------
+// USER
+// Un solo modelo para ciudadanos, funcionarios y admins.
+// El campo `role` determina qué puede hacer en el sistema.
+// Los funcionarios tienen departmentId; los ciudadanos no.
+// -------------------------------------------------------------
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  passwordHash String
+  fullName     String
+  dni          String  @unique
+  phone        String?
+  role         Role    @default(CITIZEN)
+
+  // Solo aplica si role == SECRETARY: área a la que pertenece
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  tramites      Tramite[] // Trámites presentados (ciudadano)
+  statusChanges StatusHistory[] // Cambios de estado que realizó (funcionario)
+  notifications Notification[] // Notificaciones recibidas
+
+  @@map("users")
+}
+
+// -------------------------------------------------------------
+// DEPARTMENT — Áreas de la municipalidad
+// Se pre-cargan con un seed. Son las etiquetas que el LLM
+// usará para clasificar. El slug es lo que se le pasa al LLM
+// como opción válida de clasificación.
+// -------------------------------------------------------------
+
 model Department {
   id          String  @id @default(uuid())
   name        String  @unique
-  description String?
-  active      Boolean @default(true)
+  slug        String  @unique // e.g. "obras-publicas", "licencias", "social"
+  description String? // Contexto para el prompt del LLM
+  isActive    Boolean @default(true)
 
-  requests        Request[]
-  classifications Classification[]
+  officers User[] // Funcionarios asignados a esta área
+  tramites Tramite[] // Trámites derivados a esta área
 
   @@map("departments")
 }
 
-// ------------------------------------------------------------
-// Request — core entity of the system
-// ------------------------------------------------------------
-model Request {
-  id           String @id @default(uuid())
-  trackingCode String @unique @map("tracking_code")
+// Áreas pre-cargadas via seed:
+// - Obras Públicas        (obras-publicas)
+// - Licencias y Comercio  (licencias-comercio)
+// - Desarrollo Social     (desarrollo-social)
+// - Rentas y Tributación  (rentas-tributacion)
+// - Registro Civil        (registro-civil)
+// - Medio Ambiente        (medio-ambiente)
+// - Seguridad Ciudadana   (seguridad-ciudadana)
+// - Secretaría General    (secretaria-general)  ← fallback
 
-  citizenId String  @map("citizen_id")
-  citizen   Citizen @relation(fields: [citizenId], references: [id])
+// -------------------------------------------------------------
+// TRAMITE — Entidad central del sistema
+// Ciclo de vida: PENDING → CLASSIFIED → IN_REVIEW → RESOLVED
+// El LLM actúa entre PENDING y CLASSIFIED.
+// -------------------------------------------------------------
 
-  // Null until the AI (or staff) assigns a department
-  departmentId String?     @map("department_id")
+model Tramite {
+  id          String @id @default(uuid())
+  title       String // Asunto del trámite (ej: "Solicitud de licencia de funcionamiento")
+  description String // Texto libre del ciudadano — lo que el LLM lee
+
+  status TramiteStatus @default(PENDING)
+
+  // Quién lo presentó
+  citizenId String
+  citizen   User   @relation(fields: [citizenId], references: [id])
+
+  // A qué área fue derivado (null hasta que el LLM clasifica)
+  departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
 
-  subject     String
-  description String        @db.Text
-  status      RequestStatus @default(PENDING)
-  priority    Int           @default(3) // 1 = urgent, 5 = routine
+  // Resultado del LLM
+  aiConfidence  Float? // 0.0 – 1.0 — qué tan seguro estuvo el modelo
+  aiRawResponse String? // JSON crudo devuelto por OpenRouter/Ollama, para auditoría
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  classifications Classification[]
+  // Relaciones
+  attachments   TramiteAttachment[]
+  statusHistory StatusHistory[]
+  notifications Notification[]
 
-  @@map("requests")
+  @@map("tramites")
 }
 
-enum RequestStatus {
-  PENDING // Just submitted, not yet classified
-  CLASSIFIED // AI assigned a department
-  IN_REVIEW // Staff is reviewing
-  RESOLVED
-  REJECTED
+// -------------------------------------------------------------
+// TRAMITE ATTACHMENT — Archivos adjuntos al trámite
+// El ciudadano puede subir DNI, planos, recibos, etc.
+// Se almacenan en S3 / local storage; aquí solo la URL.
+// -------------------------------------------------------------
 
-  @@map("request_status")
+model TramiteAttachment {
+  id        String  @id @default(uuid())
+  tramiteId String
+  tramite   Tramite @relation(fields: [tramiteId], references: [id], onDelete: Cascade)
+
+  fileName  String
+  fileUrl   String // URL del archivo en storage
+  mimeType  String // "application/pdf", "image/jpeg", etc.
+  sizeBytes Int
+
+  uploadedAt DateTime @default(now())
+
+  @@map("tramite_attachments")
 }
 
-// ------------------------------------------------------------
-// Classification — log of every AI decision
-// Enables audit trail and feedback loop
-// ------------------------------------------------------------
-model Classification {
-  id String @id @default(uuid())
+// -------------------------------------------------------------
+// STATUS HISTORY — Auditoría de cada cambio de estado
+// Permite al ciudadano ver el historial completo de su trámite
+// y al sistema generar notificaciones por cada transición.
+// -------------------------------------------------------------
 
-  requestId String  @map("request_id")
-  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+model StatusHistory {
+  id        String  @id @default(uuid())
+  tramiteId String
+  tramite   Tramite @relation(fields: [tramiteId], references: [id], onDelete: Cascade)
 
-  suggestedDepartmentId String     @map("suggested_department_id")
-  suggestedDepartment   Department @relation(fields: [suggestedDepartmentId], references: [id])
+  // Quién hizo el cambio (puede ser el sistema/LLM → null, o un funcionario)
+  changedById String?
+  changedBy   User?   @relation(fields: [changedById], references: [id])
 
-  confidence Float // 0.0 – 1.0
-  modelUsed  String  @map("model_used") // e.g. "gemini-1.5-flash"
-  reasoning  String  @db.Text // AI explanation
-  accepted   Boolean @default(true) // false if staff overrode the decision
+  fromStatus TramiteStatus
+  toStatus   TramiteStatus
+  comment    String? // Motivo del cambio (obligatorio si toStatus == REJECTED)
 
-  createdAt DateTime @default(now()) @map("created_at")
+  changedAt DateTime @default(now())
 
-  @@map("classifications")
+  @@map("status_history")
+}
+
+// -------------------------------------------------------------
+// NOTIFICATION — Emails enviados al ciudadano
+// Se crea un registro por cada email que el sistema intenta
+// enviar. Permite reintentos y auditoría de entregas.
+// -------------------------------------------------------------
+
+model Notification {
+  id        String  @id @default(uuid())
+  tramiteId String
+  tramite   Tramite @relation(fields: [tramiteId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  channel        NotificationChannel @default(EMAIL)
+  subject        String
+  body           String // HTML del email
+  deliveryStatus DeliveryStatus      @default(QUEUED)
+
+  sentAt DateTime? // null hasta que Resend confirma el envío
+
+  @@map("notifications")
 }
