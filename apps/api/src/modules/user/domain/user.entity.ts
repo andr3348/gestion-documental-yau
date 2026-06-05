@@ -1,5 +1,3 @@
-import { Role } from './value-objects/role.vo';
-
 export interface UserProps {
   id: string;
   email: string;
@@ -7,22 +5,14 @@ export interface UserProps {
   fullName: string;
   dni: string;
   phone?: string | null;
-  role: Role;
+  role: 'CITIZEN' | 'SECRETARY' | 'ADMIN';
   departmentId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export class UserEntity {
-  private readonly props: UserProps;
-
-  private constructor(props: UserProps) {
-    this.props = props;
-  }
-
-  static create(props: UserProps): UserEntity {
-    return new UserEntity(props);
-  }
+  constructor(private readonly props: UserProps) {}
 
   // --- Getters ---
   get id(): string {
@@ -43,7 +33,7 @@ export class UserEntity {
   get phone(): string | null {
     return this.props.phone ?? null;
   }
-  get role(): Role {
+  get role(): 'CITIZEN' | 'SECRETARY' | 'ADMIN' {
     return this.props.role;
   }
   get departmentId(): string | null {
@@ -58,11 +48,11 @@ export class UserEntity {
 
   // --- Domain methods ---
   isSecretary(): boolean {
-    return this.props.role === Role.SECRETARY;
+    return this.props.role === 'SECRETARY';
   }
 
   isCitizen(): boolean {
-    return this.props.role === Role.CITIZEN;
+    return this.props.role === 'CITIZEN';
   }
 
   belongsToDepartment(departmentId: string): boolean {
