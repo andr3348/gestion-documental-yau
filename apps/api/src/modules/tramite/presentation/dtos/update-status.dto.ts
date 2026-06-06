@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { TramiteStatus } from '../../domain/tramite.entity';
+import { type TramiteStatus } from '../../domain/tramite.entity';
 
 const ALLOWED_TRANSITIONS: TramiteStatus[] = [
   'IN_REVIEW',
