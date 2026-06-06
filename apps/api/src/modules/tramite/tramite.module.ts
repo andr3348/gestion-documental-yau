@@ -9,9 +9,11 @@ import { SubmitTramiteUseCase } from './application/submit-tramite.use-case';
 import { UpdateStatusUseCase } from './application/update-status.use-case';
 import { GetTramitesUseCase } from './application/get-tramites.use-case';
 import { TramiteController } from './presentation/tramite.controller';
+import { NotificationModule } from '../notification/notification.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [PrismaModule, DepartmentModule],
+  imports: [PrismaModule, DepartmentModule, NotificationModule, UserModule],
   providers: [
     SubmitTramiteUseCase,
     UpdateStatusUseCase,
