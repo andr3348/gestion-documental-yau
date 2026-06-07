@@ -9,6 +9,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true })); // elimina propiedades no definidas en los DTOs
+  app.setGlobalPrefix('api'); // todas las rutas tendrán el prefijo /api
   app.enableCors({
     origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
     credentials: true, // imprescindible para que el browser envíe cookies
