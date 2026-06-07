@@ -1,8 +1,10 @@
-import * as pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 
 export class PdfExtractor {
   static async extract(buffer: Buffer): Promise<string> {
-    const data = await pdfParse(buffer);
-    return data.text?.trim() ?? '';
+    const pdf = new PDFParse({ data: buffer });
+    const result = await pdf.getText();
+    await pdf.destroy();
+    return result.text?.trim() ?? '';
   }
 }
