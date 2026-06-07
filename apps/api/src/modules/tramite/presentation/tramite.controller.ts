@@ -6,18 +6,37 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { randomUUID } from 'crypto';
 import { SubmitTramiteUseCase } from '../application/submit-tramite.use-case';
 import { UpdateStatusUseCase } from '../application/update-status.use-case';
 import { GetTramitesUseCase } from '../application/get-tramites.use-case';
-import { SubmitTramiteDto } from './dtos/submit-tramite.dto';
 import { UpdateStatusDto } from './dtos/update-status.dto';
+import { IsNotEmpty, IsString } from 'class-validator';
 import { JwtAuthGuard } from '../../../shared/guards/jwt.guard';
 import { RolesGuard } from '../../../shared/guards/roles.guard';
 import { Roles } from '../../../shared/decorators/roles.decorator';
 import { UserEntity } from '../../user/domain/user.entity';
 import { CurrentUser } from 'src/modules/auth/presentation/decorators/current-user.decorator';
+
+class SubmitTramiteBodyDto {
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+}
+
+const multerStorage = diskStorage({
+  destination: './uploads',
+  filename: (_, file, cb) => {
+    cb(null, `${randomUUID()}${extname(file.originalname)}`);
+  },
+});
 
 @Controller('tramites')
 @UseGuards(JwtAuthGuard)
@@ -28,26 +47,29 @@ export class TramiteController {
     private readonly getTramites: GetTramitesUseCase,
   ) {}
 
-  // Ciudadano: envía un trámite
   @Post()
   @Roles('CITIZEN')
   @UseGuards(RolesGuard)
-  async submit(@Body() dto: SubmitTramiteDto, @CurrentUser() user: UserEntity) {
+  @UseInterceptors(FileInterceptor('file', { storage: multerStorage }))
+  async submit(
+    @Body() dto: SubmitTramiteBodyDto,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: UserEntity,
+  ) {
     const tramite = await this.submitTramite.execute({
       title: dto.title,
-      extractedText: dto.extractedText,
       citizenId: user.id,
-      attachment: {
-        fileName: dto.fileName,
-        fileUrl: dto.fileUrl,
-        mimeType: dto.mimeType,
-        sizeBytes: dto.sizeBytes,
+      file: {
+        buffer: file.buffer,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        savedPath: file.path,
       },
     });
     return tramite.toObject();
   }
 
-  // Ciudadano: lista sus trámites
   @Get('my')
   @Roles('CITIZEN')
   @UseGuards(RolesGuard)
@@ -56,7 +78,6 @@ export class TramiteController {
     return tramites.map((t) => t.toObject());
   }
 
-  // Secretario: lista trámites de su área
   @Get('department')
   @Roles('SECRETARY')
   @UseGuards(RolesGuard)
@@ -66,7 +87,6 @@ export class TramiteController {
     return tramites.map((t) => t.toObject());
   }
 
-  // Secretario: cambia el estado de un trámite
   @Patch(':id/status')
   @HttpCode(200)
   @Roles('SECRETARY')
