@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import {
   type ITramiteRepository,
   TRAMITE_REPOSITORY,
@@ -8,21 +9,21 @@ import {
   TRAMITE_CLASSIFIER,
 } from '../domain/tramite-classifier.port';
 import {
-  DEPARTMENT_REPOSITORY,
   type IDepartmentRepository,
-} from 'src/modules/department/domain/department.repository';
+  DEPARTMENT_REPOSITORY,
+} from '../../department/domain/department.repository';
+import { PdfExtractor } from '../infrastructure/pdf.extractor';
 import { TramiteEntity } from '../domain/tramite.entity';
-import { randomUUID } from 'crypto';
 
-export interface SubmittramiteInput {
+export interface SubmitTramiteInput {
   title: string;
-  extractedText: string; // texto extraído del PDF en el frontend
   citizenId: string;
-  attachment: {
-    fileName: string;
-    fileUrl: string;
-    mimeType: string;
-    sizeBytes: number;
+  file: {
+    buffer: Buffer;
+    originalname: string;
+    mimetype: string;
+    size: number;
+    savedPath: string; // ruta local donde multer guardó el archivo
   };
 }
 
@@ -40,36 +41,37 @@ export class SubmitTramiteUseCase {
     private readonly departmentRepo: IDepartmentRepository,
   ) {}
 
-  async execute(input: SubmittramiteInput): Promise<TramiteEntity> {
-    // 1. Crear trámite en PENDING
+  async execute(input: SubmitTramiteInput): Promise<TramiteEntity> {
+    // 1. Extraer texto del PDF
+    const extractedText = await PdfExtractor.extract(input.file.buffer);
+
+    // 2. Crear trámite PENDING
     const tramite = await this.tramiteRepo.create({
       id: randomUUID(),
       title: input.title,
-      description: input.extractedText,
+      description: extractedText,
       citizenId: input.citizenId,
     });
 
-    // 2. Guardar adjunto
+    // 3. Guardar adjunto con ruta local como fileUrl
     await this.tramiteRepo.createAttachment({
       id: randomUUID(),
       tramiteId: tramite.id,
-      fileName: input.attachment.fileName,
-      fileUrl: input.attachment.fileUrl,
-      mimeType: input.attachment.mimeType,
-      sizeBytes: input.attachment.sizeBytes,
+      fileName: input.file.originalname,
+      fileUrl: input.file.savedPath,
+      mimeType: input.file.mimetype,
+      sizeBytes: input.file.size,
     });
 
-    // 3. Obtener slugs activos para el prompt
+    // 4. Clasificar con LLM
     const departments = await this.departmentRepo.findAllActive();
     const availableSlugs = departments.map((d) => d.slug);
-
-    // 4. Clasificar con LLM
     const result = await this.classifier.classify(
-      input.extractedText,
+      extractedText,
       availableSlugs,
     );
 
-    // 5. Determinar departamento — fallback si confianza baja o slug inválido
+    // 5. Resolver departamento con fallback
     const resolvedSlug =
       result.confidence >= CONFIDENCE_THRESHOLD &&
       availableSlugs.includes(result.departmentSlug)
@@ -78,13 +80,11 @@ export class SubmitTramiteUseCase {
 
     const department = await this.departmentRepo.findBySlug(resolvedSlug);
 
-    // 6. Actualizar trámite a CLASSIFIED
-    const classified = await this.tramiteRepo.updateClassification(tramite.id, {
+    // 6. Actualizar a CLASSIFIED
+    return this.tramiteRepo.updateClassification(tramite.id, {
       departmentId: department!.id,
       aiConfidence: result.confidence,
       aiRawResponse: result.rawResponse,
     });
-
-    return classified;
   }
 }
