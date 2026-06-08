@@ -1,159 +1,98 @@
-# Turborepo starter
+# Gestión Documental Yau
 
-This Turborepo starter is maintained by the Turborepo core team.
+An automated document management system for a Peruvian municipality. Citizens submit PDF requests, which are **automatically classified to the correct municipal department** using an LLM (Gemma 4 31B via OpenRouter). Secretaries review, resolve, or reject requests, and citizens receive **real-time email notifications**.
 
-## Using this example
+Built as a monorepo with Turborepo (pnpm).
 
-Run the following command:
+## Architecture
 
-```sh
-npx create-turbo@latest
+```
+apps/
+├── api/   — NestJS 11 backend (Clean Architecture / DDD)
+│            Modules: Auth, User, Tramite, Department, Notification
+│            Layers: domain/ → application/ → infrastructure/ → presentation/
+└── web/   — Next.js 16 frontend (FSD Lite)
+             Features: auth, tramite, secretary, departments
+
+packages/
+└── database/ — Prisma schema + generated client
 ```
 
-## What's inside?
+**Key dependencies:**
+- OpenRouter API (Gemma 4 31B) for document classification
+- Resend API for email notifications
+- PostgreSQL + Prisma ORM
+- JWT auth with httpOnly cookies
+- Tailwind CSS v4 + shadcn/ui (base-nova)
 
-This Turborepo includes the following packages/apps:
+## Prerequisites
 
-### Apps and Packages
+- **Node.js** >= 22
+- **pnpm** >= 10 (`corepack enable && corepack prepare pnpm@latest --activate`)
+- **PostgreSQL** 16 running locally
+- **OpenRouter** API key (free tier works)
+- **Resend** API key (free tier: ~100 emails/day)
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+## Setup
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+### 1. Clone and install
 
 ```sh
-cd my-turborepo
-turbo build
+git clone <repo-url>
+cd gestion-documental-yau
+pnpm install
 ```
 
-Without global `turbo`, use your package manager:
+### 2. Configure environment
 
 ```sh
-cd my-turborepo
-npx turbo build
-pnpm dlx turbo build
-pnpm exec turbo build
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+Edit `apps/api/.env`:
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/gesdocyau"
+JWT_SECRET="your-secret-key"
+OPENROUTER_API_KEY="sk-or-v1-..."
+RESEND_API_KEY="re_..."
+RESEND_FROM_EMAIL="onboarding@resend.dev"
+FRONTEND_URL="http://localhost:3000"
+PORT=3001
+```
+
+### 3. Create database
 
 ```sh
-turbo build --filter=docs
+createdb gesdocyau
+pnpm --filter @yau/database db:deploy
 ```
 
-Without global `turbo`:
+### 4. Seed departments
 
 ```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+pnpm --filter @yau/api seed
 ```
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+### 5. Start dev servers
 
 ```sh
-cd my-turborepo
-turbo dev
+pnpm dev
 ```
 
-Without global `turbo`, use your package manager:
+- API: `http://localhost:3001/api`
+- Web: `http://localhost:3000`
 
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
-```
+## Usage
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+1. **Register** as CITIZEN or SECRETARY
+2. **Citizen** — upload a PDF request from the dashboard
+3. **AI** automatically classifies it to the correct department
+4. **Secretary** — review, update status, add comments
+5. **Citizen** receives an email when the request is resolved or rejected
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+## Project info
 
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- Course: Taller de Desarrollo de Aplicaciones con Machine Learning — SENATI
+- Student: Diego Valencia
