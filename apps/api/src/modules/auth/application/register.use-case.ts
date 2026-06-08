@@ -18,6 +18,7 @@ export interface RegisterInput {
   dni: string;
   phone?: string | null;
   role?: 'CITIZEN' | 'SECRETARY';
+  departmentId?: string | null;
 }
 
 @Injectable()
@@ -46,6 +47,7 @@ export class RegisterUseCase {
       dni: input.dni,
       phone: input.phone ?? null,
       role: input.role,
+      departmentId: input.departmentId ?? null,
     });
   }
 }

@@ -31,4 +31,8 @@ export class RegisterDto {
   @IsIn(['CITIZEN', 'SECRETARY'])
   @IsOptional()
   role?: 'CITIZEN' | 'SECRETARY';
+
+  @IsString()
+  @IsOptional()
+  departmentId?: string;
 }

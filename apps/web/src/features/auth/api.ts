@@ -7,6 +7,8 @@ export const authApi = {
     fullName: string;
     dni: string;
     phone?: string;
+    role?: "CITIZEN" | "SECRETARY";
+    departmentId?: string;
   }) =>
     apiClient("/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
