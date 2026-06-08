@@ -66,15 +66,15 @@ export class UpdateStatusUseCase {
     if (input.newStatus === 'RESOLVED' || input.newStatus === 'REJECTED') {
       const [citizen, department] = await Promise.all([
         this.userRepo.findById(tramite.citizenId),
-        this.departmentRepo.findById(tramite.departmentId!),
+        this.departmentRepo.findById(tramite.departmentId),
       ]);
 
       if (citizen && department) {
         if (input.newStatus === 'RESOLVED') {
-          // fire-and-forget — no bloquea la respuesta al secretario
           this.notifyResolved
             .execute({
               tramiteId: tramite.id,
+              citizenId: citizen.id,
               citizenEmail: citizen.email,
               citizenName: citizen.fullName,
               tramiteTitle: tramite.title,
@@ -85,6 +85,7 @@ export class UpdateStatusUseCase {
           this.notifyRejected
             .execute({
               tramiteId: tramite.id,
+              citizenId: citizen.id,
               citizenEmail: citizen.email,
               citizenName: citizen.fullName,
               tramiteTitle: tramite.title,

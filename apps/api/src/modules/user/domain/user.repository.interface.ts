@@ -7,6 +7,8 @@ export interface CreateUserInput {
   fullName: string;
   dni: string;
   phone?: string | null;
+  role?: 'CITIZEN' | 'SECRETARY';
+  departmentId?: string | null;
 }
 
 export interface IUserRepository {

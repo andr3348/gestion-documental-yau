@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -18,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { ArrowRight, AlertTriangle } from "lucide-react";
+import { TramiteStatusBadge } from "../tramite/TramiteStatusBadge";
 
 interface Props {
   tramiteId: string;
@@ -61,13 +64,26 @@ export function UpdateStatusModal({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-base font-medium">
-            Actualizar: {tramiteTitle}
+            Actualizar estado
           </DialogTitle>
+          <DialogDescription className="line-clamp-1">
+            {tramiteTitle}
+          </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-4 py-2">
-          <div className="space-y-1">
+          <div className="flex items-center justify-center gap-3 py-2">
+            <TramiteStatusBadge status="CLASSIFIED" />
+            <ArrowRight className="size-4 text-muted-foreground" />
+            <TramiteStatusBadge status={status} />
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Nuevo estado</Label>
-            <Select value={status} onValueChange={setStatus}>
+            <Select
+              value={status}
+              onValueChange={(v) => setStatus(v ?? "IN_REVIEW")}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -78,7 +94,8 @@ export function UpdateStatusModal({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+
+          <div className="space-y-1.5">
             <Label>
               {status === "REJECTED"
                 ? "Motivo (obligatorio)"
@@ -88,16 +105,32 @@ export function UpdateStatusModal({
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
+              placeholder={
+                status === "REJECTED"
+                  ? "Indica el motivo del rechazo..."
+                  : "Agrega un comentario (opcional)..."
+              }
             />
           </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+
+          {error && (
+            <p className="text-sm text-destructive flex items-center gap-1.5">
+              <AlertTriangle className="size-3.5" />
+              {error}
+            </p>
+          )}
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Guardando..." : "Confirmar"}
+            {loading
+              ? "Guardando..."
+              : status === "REJECTED"
+                ? "Rechazar trámite"
+                : "Confirmar cambio"}
           </Button>
         </DialogFooter>
       </DialogContent>

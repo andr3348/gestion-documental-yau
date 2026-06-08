@@ -11,8 +11,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
+import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { SubmitTramiteUseCase } from '../application/submit-tramite.use-case';
 import { UpdateStatusUseCase } from '../application/update-status.use-case';
@@ -24,19 +24,14 @@ import { RolesGuard } from '../../../shared/guards/roles.guard';
 import { Roles } from '../../../shared/decorators/roles.decorator';
 import { UserEntity } from '../../user/domain/user.entity';
 import { CurrentUser } from 'src/modules/auth/presentation/decorators/current-user.decorator';
+import { mkdir } from 'fs/promises';
+import { createWriteStream } from 'fs';
 
 class SubmitTramiteBodyDto {
   @IsString()
   @IsNotEmpty()
   title: string;
 }
-
-const multerStorage = diskStorage({
-  destination: './uploads',
-  filename: (_, file, cb) => {
-    cb(null, `${randomUUID()}${extname(file.originalname)}`);
-  },
-});
 
 @Controller('tramites')
 @UseGuards(JwtAuthGuard)
@@ -50,21 +45,40 @@ export class TramiteController {
   @Post()
   @Roles('CITIZEN')
   @UseGuards(RolesGuard)
-  @UseInterceptors(FileInterceptor('file', { storage: multerStorage }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máximo
+      fileFilter: (_, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+          cb(null, true);
+        } else {
+          cb(new Error('Solo se permiten archivos PDF'), false);
+        }
+      },
+    }),
+  )
   async submit(
     @Body() dto: SubmitTramiteBodyDto,
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: UserEntity,
   ) {
+    // Guardar en disco manualmente
+    const uploadsDir = join(process.cwd(), 'uploads');
+    await mkdir(uploadsDir, { recursive: true });
+    const fileName = `${randomUUID()}.pdf`;
+    const savedPath = join(uploadsDir, fileName);
+    createWriteStream(savedPath).end(file.buffer);
+
     const tramite = await this.submitTramite.execute({
       title: dto.title,
       citizenId: user.id,
       file: {
-        buffer: file.buffer,
+        buffer: file.buffer, // ← disponible porque usamos memoryStorage
         originalname: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
-        savedPath: file.path,
+        savedPath,
       },
     });
     return tramite.toObject();

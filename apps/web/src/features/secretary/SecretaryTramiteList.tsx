@@ -5,7 +5,23 @@ import { Tramite } from "../tramite/api";
 import { TramiteStatusBadge } from "../tramite/TramiteStatusBadge";
 import { UpdateStatusModal } from "./UpdateStatusModal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { FileText, Brain } from "lucide-react";
+
+function Skeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-xl border p-4 space-y-2 animate-pulse"
+        >
+          <div className="h-4 w-2/3 rounded bg-muted" />
+          <div className="h-3 w-1/4 rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function SecretaryTramiteList({ refresh }: { refresh: number }) {
   const [tramites, setTramites] = useState<Tramite[]>([]);
@@ -21,33 +37,43 @@ export function SecretaryTramiteList({ refresh }: { refresh: number }) {
       .finally(() => setLoading(false));
   }, [refresh, localRefresh]);
 
-  if (loading)
-    return (
-      <p className="text-sm text-muted-foreground">Cargando trámites...</p>
-    );
+  if (loading) return <Skeleton />;
+
   if (!tramites.length)
     return (
-      <p className="text-sm text-muted-foreground">
-        No hay trámites asignados a tu área.
-      </p>
+      <div className="rounded-xl border border-dashed p-8 text-center">
+        <FileText className="size-8 text-muted-foreground/50 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">
+          No hay trámites asignados a tu área.
+        </p>
+      </div>
     );
 
   return (
     <>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {tramites.map((t) => (
-          <Card key={t.id}>
-            <CardContent className="pt-4 flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{t.title}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(t.createdAt).toLocaleDateString("es-PE")}
+          <div
+            key={t.id}
+            className="rounded-xl border p-4 transition-colors hover:bg-muted/50"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{t.title}</p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-xs text-muted-foreground">
+                  <span>
+                    {new Date(t.createdAt).toLocaleDateString("es-PE", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
                   {t.aiConfidence != null && (
-                    <span className="ml-2">
-                      · IA: {(t.aiConfidence * 100).toFixed(0)}%
+                    <span className="inline-flex items-center gap-1">
+                      <Brain className="size-3" />
+                      {(t.aiConfidence * 100).toFixed(0)}%
                     </span>
                   )}
-                </p>
+                </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <TramiteStatusBadge status={t.status} />
@@ -59,8 +85,8 @@ export function SecretaryTramiteList({ refresh }: { refresh: number }) {
                   Gestionar
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
 
