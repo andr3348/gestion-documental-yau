@@ -93,7 +93,7 @@ export function RegisterForm() {
             <Label>Tipo de cuenta</Label>
             <Select
               value={form.role}
-              onValueChange={(v) => setForm({ ...form, role: v })}
+              onValueChange={(v) => setForm({ ...form, role: v ?? "CITIZEN" })}
             >
               <SelectTrigger>
                 <SelectValue />
