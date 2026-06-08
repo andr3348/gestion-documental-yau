@@ -66,7 +66,7 @@ export class UpdateStatusUseCase {
     if (input.newStatus === 'RESOLVED' || input.newStatus === 'REJECTED') {
       const [citizen, department] = await Promise.all([
         this.userRepo.findById(tramite.citizenId),
-        this.departmentRepo.findById(tramite.departmentId!),
+        this.departmentRepo.findById(tramite.departmentId),
       ]);
 
       if (citizen && department) {

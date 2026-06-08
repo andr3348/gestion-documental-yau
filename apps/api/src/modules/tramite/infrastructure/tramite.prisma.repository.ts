@@ -6,8 +6,10 @@ import {
   CreateAttachmentInput,
   UpdateClassificationInput,
 } from '../domain/tramite.repository';
-import { TramiteEntity, TramiteStatus } from '../domain/tramite.entity';
+import { TramiteEntity } from '../domain/tramite.entity';
+import type { TramiteStatus } from '../domain/tramite.entity';
 import { TramiteAttachmentEntity } from '../domain/tramite-attachment.entity';
+
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -40,7 +42,12 @@ export class TramitePrismaRepository implements ITramiteRepository {
     return records.map((r) => new TramiteEntity(r));
   }
 
-  async updateStatus(id, status, comment, changedById) {
+  async updateStatus(
+    id: string,
+    status: TramiteStatus,
+    comment?: string,
+    changedById?: string,
+  ): Promise<TramiteEntity> {
     const current = await this.prisma.tramite.findUnique({
       where: { id },
       select: { status: true },

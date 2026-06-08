@@ -35,21 +35,29 @@ ${extractedText.slice(0, 3000)}
         body: JSON.stringify({
           model: this.model,
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.1, // baja temperatura = respuestas más determinísticas
+          temperature: 0.1,
         }),
       });
 
-      const data = await response.json();
+      interface Choice {
+        message?: { content?: string };
+      }
+      interface ApiResponse {
+        choices?: Choice[];
+      }
+
+      const data = (await response.json()) as ApiResponse;
       const rawResponse = JSON.stringify(data);
       const content: string = data.choices?.[0]?.message?.content ?? '';
 
-      const parsed = JSON.parse(content.trim());
+      const parsed = JSON.parse(content.trim()) as Record<string, unknown>;
 
-      return {
-        departmentSlug: parsed.departmentSlug,
-        confidence: parsed.confidence,
-        rawResponse,
-      };
+      const departmentSlug =
+        typeof parsed.departmentSlug === 'string' ? parsed.departmentSlug : '';
+      const confidence =
+        typeof parsed.confidence === 'number' ? parsed.confidence : 0;
+
+      return { departmentSlug, confidence, rawResponse };
     } catch (error) {
       this.logger.error('OpenRouter classification failed', error);
       // Fallback seguro — submit-tramite-use-case resolverá a secretaria-general
