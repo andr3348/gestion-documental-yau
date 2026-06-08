@@ -71,10 +71,10 @@ export class UpdateStatusUseCase {
 
       if (citizen && department) {
         if (input.newStatus === 'RESOLVED') {
-          // fire-and-forget — no bloquea la respuesta al secretario
           this.notifyResolved
             .execute({
               tramiteId: tramite.id,
+              citizenId: citizen.id,
               citizenEmail: citizen.email,
               citizenName: citizen.fullName,
               tramiteTitle: tramite.title,
@@ -85,6 +85,7 @@ export class UpdateStatusUseCase {
           this.notifyRejected
             .execute({
               tramiteId: tramite.id,
+              citizenId: citizen.id,
               citizenEmail: citizen.email,
               citizenName: citizen.fullName,
               tramiteTitle: tramite.title,

@@ -11,6 +11,7 @@ import {
 
 export interface NotifyTramiteResolvedInput {
   tramiteId: string;
+  citizenId: string;
   citizenEmail: string;
   citizenName: string;
   tramiteTitle: string;
@@ -35,7 +36,7 @@ export class NotifyTramiteResolvedUseCase {
     const notification = await this.notificationRepo.create({
       id: randomUUID(),
       tramiteId: input.tramiteId,
-      userId: input.citizenEmail, // se resuelve en el use-case llamador
+      userId: input.citizenId,
       subject,
       body: html,
     });
