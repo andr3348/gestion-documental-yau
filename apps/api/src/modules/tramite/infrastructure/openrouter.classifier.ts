@@ -8,7 +8,7 @@ import {
 export class OpenRouterClassifier implements ITramiteClassifier {
   private readonly logger = new Logger(OpenRouterClassifier.name);
   private readonly apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  private readonly model = 'mistralai/mistral-7b-instruct:free';
+  private readonly model = 'google/gemma-4-31b-it:free';
 
   async classify(
     extractedText: string,
